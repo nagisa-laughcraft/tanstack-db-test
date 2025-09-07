@@ -1,13 +1,13 @@
-// Swap-ready DB layer. Currently in-memory; replace with TanStack DB.
-// Keep method signatures stable so UI code doesn't change when swapping.
+// TanStack DB implementation for projects and tasks CRUD
+import { createDatabase, createTable, text, integer, boolean, eq } from '@tanstack/db'
 
-type Project = {
+export type Project = {
   id: string
   name: string
   createdAt: number
 }
 
-type Task = {
+export type Task = {
   id: string
   projectId: string
   title: string
@@ -15,64 +15,66 @@ type Task = {
   createdAt: number
 }
 
-const delay = (ms = 100) => new Promise((r) => setTimeout(r, ms))
+// define tables
+const projects = createTable('projects', {
+  id: text().primaryKey(),
+  name: text(),
+  createdAt: integer(),
+})
 
-class InMemoryDB {
-  private projects = new Map<string, Project>()
-  private tasks = new Map<string, Task>()
+const tasks = createTable('tasks', {
+  id: text().primaryKey(),
+  projectId: text().references(() => projects.columns.id),
+  title: text(),
+  done: boolean().default(false),
+  createdAt: integer(),
+})
 
+// create database instance (in-memory)
+const dbClient = createDatabase({
+  projects,
+  tasks,
+})
+
+export const db = {
   async listProjects(): Promise<Project[]> {
-    await delay(50)
-    return Array.from(this.projects.values())
-  }
-
+    return dbClient.select().from(projects).exec()
+  },
   async createProject(input: { name: string }): Promise<Project> {
-    await delay(50)
-    const id = cryptoRandomId()
-    const p: Project = { id, name: input.name, createdAt: Date.now() }
-    this.projects.set(id, p)
+    const p: Project = { id: cryptoRandomId(), name: input.name, createdAt: Date.now() }
+    await dbClient.insert(projects).values(p).run()
     return p
-  }
-
+  },
   async deleteProject(id: string): Promise<void> {
-    await delay(50)
-    this.projects.delete(id)
-    // cascade delete tasks
-    for (const t of Array.from(this.tasks.values())) {
-      if (t.projectId === id) this.tasks.delete(t.id)
-    }
-  }
-
+    await dbClient.delete(projects).where(eq(projects.columns.id, id)).run()
+    await dbClient.delete(tasks).where(eq(tasks.columns.projectId, id)).run()
+  },
   async listTasks(projectId: string): Promise<Task[]> {
-    await delay(50)
-    return Array.from(this.tasks.values()).filter((t) => t.projectId === projectId)
-  }
-
+    return dbClient.select().from(tasks).where(eq(tasks.columns.projectId, projectId)).exec()
+  },
   async createTask(input: { projectId: string; title: string }): Promise<Task> {
-    await delay(50)
-    const id = cryptoRandomId()
-    const t: Task = { id, projectId: input.projectId, title: input.title, done: false, createdAt: Date.now() }
-    this.tasks.set(id, t)
+    const t: Task = { id: cryptoRandomId(), projectId: input.projectId, title: input.title, done: false, createdAt: Date.now() }
+    await dbClient.insert(tasks).values(t).run()
     return t
-  }
-
+  },
   async updateTask(id: string, patch: Partial<Pick<Task, 'title' | 'done'>>): Promise<Task> {
-    await delay(50)
-    const cur = this.tasks.get(id)
-    if (!cur) throw new Error('Task not found')
-    const next = { ...cur, ...patch }
-    this.tasks.set(id, next)
+    const current = await dbClient
+      .select()
+      .from(tasks)
+      .where(eq(tasks.columns.id, id))
+      .exec()
+      .then((rows: Task[]) => rows[0])
+    if (!current) throw new Error('Task not found')
+    const next = { ...current, ...patch }
+    await dbClient.update(tasks).set(next).where(eq(tasks.columns.id, id)).run()
     return next
-  }
-
+  },
   async deleteTask(id: string): Promise<void> {
-    await delay(50)
-    this.tasks.delete(id)
-  }
+    await dbClient.delete(tasks).where(eq(tasks.columns.id, id)).run()
+  },
 }
 
 function cryptoRandomId() {
-  // generate a 16 char id
   const arr = new Uint8Array(8)
   if (typeof crypto !== 'undefined' && 'getRandomValues' in crypto) {
     crypto.getRandomValues(arr)
@@ -83,10 +85,3 @@ function cryptoRandomId() {
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('')
 }
-
-export const db = new InMemoryDB()
-
-// To integrate TanStack DB later:
-// - Replace InMemoryDB with a wrapper that calls your TanStack DB client
-// - Keep exported method names/signatures the same for a drop-in swap
-

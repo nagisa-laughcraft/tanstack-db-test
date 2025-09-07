@@ -1,6 +1,6 @@
 ## TanStack DB Sample (React + TypeScript)
 
-このリポジトリは、React + TypeScript で「Projects/Tasks」のシンプルな CRUD を提供するサンプルです。現状の DB 層はインメモリ実装で、`src/services/db.ts` を差し替えるだけで TanStack DB へ置き換えられる構成にしてあります。
+このリポジトリは、React + TypeScript で「Projects/Tasks」のシンプルな CRUD を提供するサンプルです。DB 層には TanStack DB を採用し、`src/services/db.ts` にスキーマ定義とクエリ実装があります。
 
 ### 使い方
 
@@ -24,16 +24,17 @@
 - Vite
 - @tanstack/react-router でルーティング
 - @tanstack/react-query でデータ取得/キャッシュ
+- TanStack DB で永続化
 
 ### ファイル構成
 
 - `src/screens/Projects.tsx` … Projects と Tasks の UI/CRUD
-- `src/services/db.ts` … DB 抽象。今はインメモリ。ここを TanStack DB に差し替え
+- `src/services/db.ts` … TanStack DB を用いた DB 抽象
 - `src/router.tsx` … ルーティング定義
 
-### TanStack DB への差し替え方（ガイド）
+### TanStack DB スキーマ
 
-`src/services/db.ts` の `InMemoryDB` を、TanStack DB クライアント呼び出しに置き換えてください。UI からの利用は以下のメソッドに依存しているため、同じシグネチャを保てば差し替えが容易です。
+Projects と Tasks は 1:N のリレーションを持つシンプルな構成です。`db.ts` 内でスキーマを定義し、以下の CRUD メソッドを提供しています。
 
 - `listProjects(): Promise<Project[]>`
 - `createProject({ name }: { name: string }): Promise<Project>`
@@ -42,8 +43,3 @@
 - `createTask({ projectId, title }: { projectId: string; title: string }): Promise<Task>`
 - `updateTask(id: string, patch: { title?: string; done?: boolean }): Promise<Task>`
 - `deleteTask(id: string): Promise<void>`
-
-必要であれば、TanStack DB のスキーマ定義（例: Projects/Tasks のテーブル、1:N リレーション）を作成し、上記メソッドでクエリ/ミューテーションを呼び出すだけです。
-
-> 注: TanStack DB の具体的なパッケージ名や API はバージョンにより変わる可能性があります。ご利用予定のバージョン/ドキュメント URL を教えていただければ、ここに実装を反映します。
-
